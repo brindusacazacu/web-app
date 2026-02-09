@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Signup — Rețete</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">🍲</div>
+      <div>
+        <div class="brand-title">Rețete</div>
+        <div class="brand-subtitle">Signup</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="btn ghost" href="index.html">Acasă</a>
+      <a class="btn ghost" href="login.html">Login</a>
+    </nav>
+  </header>
+
+  <main class="container narrow">
+    <section class="card">
+      <h1>Creare cont</h1>
+
+      <form id="signupForm">
+        <div class="field">
+          <label for="name">Nume</label>
+          <input id="name" required placeholder="ex: Ion Popescu">
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" type="email" required placeholder="ex: ion@exemplu.ro">
+        </div>
+
+        <div class="field">
+          <label for="password">Parolă</label>
+          <input id="password" type="password" required placeholder="minim 6 caractere">
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="submit">Creează cont</button>
+          <a class="btn ghost" href="index.html">Continuă ca Guest</a>
+        </div>
+
+        <p class="error" id="signupError" style="display:none;"></p>
+        <p class="muted tiny">Demo: conturile sunt salvate local în browser.</p>
+      </form>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    window.__PAGE__ = "signup";
+  </script>
+</body>
+</html>

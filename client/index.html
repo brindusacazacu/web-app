@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ro">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rețete — Acasă</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <div class="logo">🍲</div>
+            <div>
+                <div class="brand-title">Rețete</div>
+                <div class="brand-subtitle">caută • salvează • gătește</div>
+            </div>
+        </div>
+
+        <nav class="nav">
+            <span id="helloUser" class="hello"></span>
+            <a class="btn ghost" href="login.html" id="loginBtn">Login</a>
+            <a class="btn ghost" href="signup.html" id="signupBtn">Signup</a>
+            <button class="btn danger" id="logoutBtn" style="display:none;">Logout</button>
+        </nav>
+    </header>
+
+    <main class="container">
+        <section class="panel">
+            <h1>Rețete</h1>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h2>Filtrare după ingredientele principale</h2>
+                    <p class="muted">
+                        Scrie ce ingrediente ai (separate prin virgulă). Se afișează doar rețetele
+                        pentru care <b>nu îți lipsește niciun ingredient principal</b>.
+                    </p>
+                    <p class="error" id="addRecipeNotice" style="display:none;"></p>
+
+                    <div class="field">
+                        <label for="nameInput">Căutare după nume</label>
+                        <input id="nameInput" type="text" placeholder="ex: paste, pui, butter chicken">
+                        <small class="hint">Caută în denumirea rețetei.</small>
+                    </div>
+
+                    <div class="field">
+                        <label for="haveInput">Ingrediente pe care le ai</label>
+                        <input id="haveInput" type="text" placeholder="ex: piept de pui, unt, smântână, roșii pasate">
+                        <small class="hint">Tip: poți folosi și butonul „Folosește ingredientele din rețetă” din pagina
+                            unei rețete.</small>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn" id="applyFilterBtn">Aplică filtrul</button>
+                        <button class="btn ghost" id="clearFilterBtn">Șterge filtrul</button>
+                    </div>
+
+                    <div class="chips" id="activeFilterChips" aria-label="Ingrediente active"></div>
+                </div>
+
+                <div class="card">
+                    <h2>Adaugă o rețetă nouă</h2>
+                    <p class="muted">
+                        Poți adăuga rețete și ca Guest (se salvează local în browser).
+                    </p>
+
+                    <form id="addRecipeForm">
+                        <div class="grid-2">
+                            <div class="field">
+                                <label for="rName">Denumire *</label>
+                                <input id="rName" required placeholder="ex: Butter Chicken">
+                            </div>
+                            <div class="field">
+                                <label for="rImage">Imagine (URL) *</label>
+                                <input id="rImage" required placeholder="https://...jpg/png">
+                            </div>
+                        </div>
+
+                        <div class="grid-3">
+                            <div class="field">
+                                <label for="rTime">Timp total (minute) *</label>
+                                <input id="rTime" required type="number" min="1" placeholder="45">
+                            </div>
+                            <div class="field">
+                                <label for="rServings">Porții *</label>
+                                <input id="rServings" required type="number" min="1" placeholder="4">
+                            </div>
+                            <div class="field">
+                                <label for="rCategory">Categorie</label>
+                                <input id="rCategory" placeholder="Fel principal / Desert etc.">
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label for="rMain">Ingrediente principale (obligatorii) *</label>
+                            <textarea id="rMain" required rows="4" placeholder="Format: ingredient - gramaj
+ex:
+piept de pui - 500 g
+roșii pasate - 300 g
+smântână de gătit - 200 ml"></textarea>
+                            <small class="hint">Acestea sunt ingredientele folosite la filtrare.</small>
+                        </div>
+
+                        <div class="field">
+                            <label for="rSecondary">Ingrediente secundare (opțional)</label>
+                            <textarea id="rSecondary" rows="3"
+                                placeholder="ex: sare, piper, chili, mix condimente"></textarea>
+                        </div>
+
+                        <div class="field">
+                            <label for="rDesc">Descriere / Cum se prepară *</label>
+                            <textarea id="rDesc" required rows="5" placeholder="Pașii de preparare..."></textarea>
+                        </div>
+
+                        <div class="actions">
+                            <button class="btn" type="submit" id="saveRecipeBtn">Salvează rețeta</button>
+                            <button class="btn ghost" type="button" id="cancelEditBtn" style="display:none;">Anulează
+                                editarea</button>
+                            <button class="btn ghost" type="button" id="seedBtn">Încarcă rețete demo</button>
+                        </div>
+
+
+                        <p class="muted tiny">* câmp obligatoriu</p>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2 id="resultsTitle">Toate rețetele</h2>
+                <div class="muted" id="resultsMeta"></div>
+            </div>
+
+            <div class="recipes-grid" id="recipesGrid"></div>
+        </section>
+
+        <!-- Modal detalii rețetă -->
+        <div class="modal" id="recipeModal" aria-hidden="true">
+            <div class="modal-backdrop" data-close="true"></div>
+            <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+                <div class="modal-head">
+                    <h3 id="modalTitle">Rețetă</h3>
+                    <button class="icon-btn" id="closeModalBtn" aria-label="Închide">✕</button>
+                </div>
+                <div class="modal-body" id="modalBody"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <span class="muted">Datele sunt salvate local (localStorage) pentru demo.</span>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
