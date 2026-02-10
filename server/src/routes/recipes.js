@@ -1,6 +1,7 @@
 import express from "express";
 import { Recipe } from "../models/Recipe.js";
 import { requireAuth } from "../middleware/auth.js";
+import { User } from "../models/User.js";
 
 export const recipesRouter = express.Router();
 
@@ -56,4 +57,32 @@ recipesRouter.delete("/:id", requireAuth, async (req, res) => {
 
   await Recipe.deleteOne({ _id: recipe._id });
   res.json({ ok: true });
+});
+
+// auth: toggle favorite
+recipesRouter.post("/:id/favorite", requireAuth, async (req, res) => {
+  const userId = req.user.userId;
+  const recipeId = req.params.id;
+
+  const user = await User.findById(userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const index = user.favorites.findIndex(id => id.toString() === recipeId);
+
+  if (index >= 0) {
+    user.favorites.splice(index, 1); // remove
+  } else {
+    user.favorites.push(recipeId); // add
+  }
+
+  await user.save();
+  res.json({ favorites: user.favorites });
+});
+
+// auth: get favorites
+recipesRouter.get("/favorites/me", requireAuth, async (req, res) => {
+  const user = await User.findById(req.user.userId)
+    .populate("favorites");
+
+  res.json(user.favorites || []);
 });

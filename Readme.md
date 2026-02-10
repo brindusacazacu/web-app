@@ -85,25 +85,25 @@ web-app/
 ⚙️ Configurare și rulare locală
 
 1️⃣ Clonează proiectul
-    ```sh
+```sh
     git clone <repo-url>
     cd web-app
-    ```
+ ```
 2️⃣ Instalează dependențele backend
-    ```sh
+```sh
     cd server
     npm install
-    ```
+```
 3️⃣ Creează fișierul .env
-    ```sh
+```sh
     PORT=4000
     MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/retete
     JWT_SECRET=super_secret_key
-    ```
+```
 4️⃣ Pornește serverul
-    ```sh
+```sh
     npm run dev
-    ```
+```
 5️⃣ Deschide aplicația
     Accesează în browser: http://localhost:4000
 

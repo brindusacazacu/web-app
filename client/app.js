@@ -1,7 +1,7 @@
 // =========================
 // API + Session (MongoDB Atlas via backend)
 // =========================
-const API_BASE = "/api";
+const API_BASE = "http://localhost:4000/api";
 
 const SESSION_KEYS = {
     TOKEN: "recipes_token",
@@ -52,7 +52,7 @@ function normIngredient(s) {
 }
 
 function normText(s) {
-  return normIngredient(s); // aceeași normalizare (diacritice + lowercase)
+    return normIngredient(s); // aceeași normalizare (diacritice + lowercase)
 }
 
 function parseUserIngredients(input) {
@@ -219,10 +219,26 @@ function renderUserHeader() {
 }
 
 function recipeCard(recipe) {
-    const div = document.createElement("div");
-    div.className = "recipe-card";
-    div.innerHTML = `
-    <img class="recipe-thumb" src="${escapeAttr(recipe.imageUrl)}" alt="${escapeAttr(recipe.name)}">
+  const div = document.createElement("div");
+  div.className = "recipe-card";
+
+  const user = getCurrentUser();
+  const recipeId = recipe._id || recipe.id;
+
+  // status favorit din cache (dacă există)
+  const isFav = !!user && Array.isArray(window.__FAV_CACHE__) && window.__FAV_CACHE__.includes(String(recipeId));
+
+  div.innerHTML = `
+    <div style="position:relative;">
+      <img class="recipe-thumb" src="${escapeAttr(recipe.imageUrl)}" alt="${escapeAttr(recipe.name)}">
+
+      ${user ? `
+        <div style="position:absolute; top:10px; right:10px;">
+          ${heartButtonHTML({ id: `cardFav_${escapeAttr(recipeId)}`, isFav })}
+        </div>
+      ` : ``}
+    </div>
+
     <div class="recipe-card-body">
       <div class="recipe-title">${escapeHTML(recipe.name)}</div>
       <div class="recipe-meta">
@@ -232,8 +248,124 @@ function recipeCard(recipe) {
       </div>
     </div>
   `;
-    div.addEventListener("click", () => openRecipeModal(recipe));
-    return div;
+
+  // click pe card => modal
+  div.addEventListener("click", () => openRecipeModal(recipe));
+
+  // click pe inimă => toggle favorite fără să deschidă modal
+  if (user) {
+    const btnId = `cardFav_${recipeId}`;
+    const btn = div.querySelector(`#${CSS.escape(btnId)}`);
+    btn?.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+
+      try {
+        const token = getToken();
+        const r = await fetch(`/api/recipes/${recipeId}/favorite`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Eroare la favorite.");
+
+        // update cache din backend
+        if (Array.isArray(data.favorites)) {
+          window.__FAV_CACHE__ = data.favorites.map(x => String(x));
+        }
+
+        const nowFav = window.__FAV_CACHE__.includes(String(recipeId));
+        setHeartBtnState(btn, nowFav);
+
+        // refresh panel favorite (ca să se vadă imediat)
+        loadFavorites();
+      } catch (err) {
+        alert(err.message || "Eroare la favorite.");
+      }
+    });
+  }
+
+  return div;
+}
+
+function heartButtonHTML({ id, isFav = false, extraClass = "" } = {}) {
+  return `
+    <button class="fav-btn ${isFav ? "is-fav" : ""} ${extraClass}" id="${id}"
+      aria-label="${isFav ? "Șterge din favorite" : "Adaugă la favorite"}"
+      aria-pressed="${isFav ? "true" : "false"}">
+      <svg class="heart" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"></path>
+      </svg>
+    </button>
+  `;
+}
+
+function setHeartBtnState(btn, isFav) {
+  if (!btn) return;
+  btn.classList.toggle("is-fav", !!isFav);
+  btn.setAttribute("aria-pressed", isFav ? "true" : "false");
+  btn.setAttribute("aria-label", isFav ? "Șterge din favorite" : "Adaugă la favorite");
+}
+
+async function fetchFavoriteIds() {
+  const token = getToken();
+  if (!token) return [];
+
+  const r = await fetch(`/api/recipes/favorites/me`, {
+    headers: { "Authorization": `Bearer ${token}` }
+  });
+  const list = await r.json();
+
+  // dacă backend întoarce rețete populate
+  if (Array.isArray(list)) return list.map(x => String(x._id || x.id));
+
+  return [];
+}
+
+async function ensureFavCache() {
+  if (!window.__FAV_CACHE__) {
+    window.__FAV_CACHE__ = await fetchFavoriteIds();
+  }
+  return window.__FAV_CACHE__;
+}
+
+async function loadFavorites() {
+  const user = getCurrentUser();
+  const panel = el("favoritesPanel");
+  const grid = el("favoritesGrid");
+  const meta = el("favoritesMeta");
+
+  if (!panel || !grid) return;
+
+  if (!user) {
+    panel.style.display = "none";
+    return;
+  }
+
+  panel.style.display = "block";
+  grid.innerHTML = "";
+  meta && (meta.textContent = "");
+
+  try {
+    const token = getToken();
+    const r = await fetch(`/api/recipes/favorites/me`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    const favorites = await r.json();
+    if (!r.ok) throw new Error(favorites?.error || "Nu pot încărca favoritele.");
+
+    // cache ids
+    window.__FAV_CACHE__ = Array.isArray(favorites)
+      ? favorites.map(x => String(x._id || x.id))
+      : [];
+
+    // randare
+    favorites.forEach(rec => grid.appendChild(recipeCard(rec)));
+
+    meta && (meta.textContent = `${favorites.length} rețete`);
+  } catch (err) {
+    meta && (meta.textContent = "Eroare la încărcare.");
+    console.error(err);
+  }
 }
 
 function escapeHTML(str) {
@@ -244,6 +376,7 @@ function escapeHTML(str) {
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
 }
+
 function escapeAttr(str) {
     return escapeHTML(str).replaceAll("\n", " ");
 }
@@ -270,15 +403,15 @@ function renderFilterChips(list) {
 }
 
 function renderRecipes(recipes) {
-  const grid = el("recipesGrid");
-  if (!grid) return;
+    const grid = el("recipesGrid");
+    if (!grid) return;
 
-  grid.innerHTML = "";
+    grid.innerHTML = "";
 
-  // opțional: sortează după nr de ingrediente
-  const list = [...recipes].sort((a, b) => a.mainIngredients.length - b.mainIngredients.length);
+    // opțional: sortează după nr de ingrediente
+    const list = [...recipes].sort((a, b) => a.mainIngredients.length - b.mainIngredients.length);
 
-  list.forEach(r => grid.appendChild(recipeCard(r)));
+    list.forEach(r => grid.appendChild(recipeCard(r)));
 }
 
 function openRecipeModal(recipe) {
@@ -300,6 +433,7 @@ function openRecipeModal(recipe) {
         (user.id && ownerId && String(ownerId) === String(user.id))
     );
 
+    const recipeId = recipe._id || recipe.id;
 
     const mainList = recipe.mainIngredients
         .map(i => `<li><b>${escapeHTML(i.name)}</b>${i.qty ? ` — ${escapeHTML(i.qty)}` : ""}</li>`)
@@ -310,14 +444,42 @@ function openRecipeModal(recipe) {
        <ul class="list">${recipe.secondaryIngredients.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul>`
         : `<p class="muted">Fără ingrediente secundare.</p>`;
 
+    // Buton inimă: goală (stroke), plină roșie (fill) când e favorit
+    const heartBtnHTML = user ? `
+    <button
+      class="icon-btn"
+      id="favBtn"
+      aria-label="Adaugă la favorite"
+      aria-pressed="false"
+      style="
+        width:44px;height:44px;
+        border-radius:999px;
+        display:inline-grid;place-items:center;
+        background: rgba(255,255,255,.06);
+        border: 1px solid rgba(35,48,68,.8);
+      "
+    >
+      <svg id="favIcon" width="20" height="20" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"></path>
+      </svg>
+    </button>
+  ` : ``;
+
     body.innerHTML = `
     <div class="modal-grid">
       <div>
         <img class="modal-img" src="${escapeAttr(recipe.imageUrl)}" alt="${escapeAttr(recipe.name)}">
-        <div class="small-actions">
-            <button class="btn ghost" id="useIngredientsBtn">Folosește ingredientele din rețetă la filtrare</button>
-            ${isOwner ? `<button class="btn ghost" id="editRecipeBtn">Editează rețeta</button>` : ``}
-            ${isOwner ? `<button class="btn danger" id="deleteRecipeBtn">Șterge rețeta</button>` : ``}
+
+        <div class="small-actions" style="align-items:center;">
+          <button class="btn ghost" id="useIngredientsBtn">Folosește ingredientele din rețetă la filtrare</button>
+
+          ${heartBtnHTML}
+
+          ${isOwner ? `<button class="btn ghost" id="editRecipeBtn">Editează rețeta</button>` : ``}
+          ${isOwner ? `<button class="btn danger" id="deleteRecipeBtn">Șterge rețeta</button>` : ``}
         </div>
 
         ${!isOwner ? `<p class="muted tiny">Doar autorul rețetei poate edita/șterge.</p>` : ``}
@@ -347,6 +509,24 @@ function openRecipeModal(recipe) {
 
     modal.setAttribute("aria-hidden", "false");
 
+    // Helpers pentru UI inimă
+    function setFavVisual(isFav) {
+        const btn = el("favBtn");
+        const icon = el("favIcon");
+        if (!btn || !icon) return;
+
+        btn.setAttribute("aria-pressed", isFav ? "true" : "false");
+        btn.setAttribute("aria-label", isFav ? "Șterge din favorite" : "Adaugă la favorite");
+
+        if (isFav) {
+            btn.style.color = "#ff5c7a";         // roșu (match cu --danger)
+            icon.setAttribute("fill", "currentColor"); // inimă plină
+        } else {
+            btn.style.color = "#e8eefb";         // alb
+            icon.setAttribute("fill", "none");   // inimă goală
+        }
+    }
+
     // Events inside modal
     el("useIngredientsBtn")?.addEventListener("click", () => {
         const names = recipe.mainIngredients.map(i => i.name).join(", ");
@@ -359,10 +539,66 @@ function openRecipeModal(recipe) {
         }
     });
 
+    // Favorite logic (doar pentru user logat)
+    if (user) {
+        let isFav = false;
+
+        // Inițial: încearcă să afli dacă e favorit (citim lista de favorite ale user-ului)
+        (async () => {
+            try {
+                const token = getToken();
+                if (!token) return;
+
+                // cache simplu (evită request la fiecare deschidere de modal)
+                if (!window.__FAV_CACHE__) {
+                    const r = await fetch(`/api/recipes/favorites/me`, {
+                        headers: { "Authorization": `Bearer ${token}` }
+                    });
+                    const favList = await r.json(); // array de rețete populate (sau ids, depinde cum ai implementat)
+                    window.__FAV_CACHE__ = Array.isArray(favList)
+                        ? favList.map(x => String(x._id || x.id))
+                        : [];
+                }
+
+                isFav = window.__FAV_CACHE__.includes(String(recipeId));
+                setFavVisual(isFav);
+            } catch {
+                // dacă nu merge fetch, lăsăm default (goală)
+                setFavVisual(false);
+            }
+        })();
+
+        el("favBtn")?.addEventListener("click", async () => {
+            try {
+                const token = getToken();
+                if (!token) return alert("Trebuie să fii logată ca să salvezi favorite.");
+
+                const r = await fetch(`/api/recipes/${recipeId}/favorite`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || "Eroare la favorite.");
+
+                // data.favorites = array de id-uri (conform propunerii de backend)
+                if (Array.isArray(data.favorites)) {
+                    window.__FAV_CACHE__ = data.favorites.map(x => String(x));
+                    isFav = window.__FAV_CACHE__.includes(String(recipeId));
+                } else {
+                    // fallback: toggle local
+                    isFav = !isFav;
+                }
+
+                setFavVisual(isFav);
+            } catch (err) {
+                alert(err.message || "Eroare la favorite.");
+            }
+        });
+    }
+
     if (isOwner) {
         el("editRecipeBtn")?.addEventListener("click", () => {
-            // umple formularul cu datele rețetei
-            editingRecipeId = recipe._id || recipe.id;
+            editingRecipeId = recipeId;
 
             el("rName").value = recipe.name || "";
             el("rImage").value = recipe.imageUrl || "";
@@ -388,7 +624,7 @@ function openRecipeModal(recipe) {
             if (!confirm("Sigur vrei să ștergi rețeta?")) return;
 
             try {
-                await deleteRecipeAPI(recipe._id || recipe.id);
+                await deleteRecipeAPI(recipeId);
                 closeModal();
                 await applyFilter();
             } catch (err) {
@@ -405,33 +641,33 @@ function closeModal() {
 }
 
 async function applyFilter() {
-  const input = el("haveInput");
-  const list = parseUserIngredients(input?.value || "");
+    const input = el("haveInput");
+    const list = parseUserIngredients(input?.value || "");
 
-  const nameQ = normText(el("nameInput")?.value || ""); // <-- nou
+    const nameQ = normText(el("nameInput")?.value || ""); // <-- nou
 
-  renderFilterChips(list);
+    renderFilterChips(list);
 
-  try {
-    const recipes = await fetchRecipes();
+    try {
+        const recipes = await fetchRecipes();
 
-    // 1) filtrare după ingrediente (cum ai deja)
-    let filtered = recipes.filter(r => recipeMatches(r, list));
+        // 1) filtrare după ingrediente (cum ai deja)
+        let filtered = recipes.filter(r => recipeMatches(r, list));
 
-    // 2) filtrare după nume (nou)
-    if (nameQ) {
-      filtered = filtered.filter(r => normText(r.name).includes(nameQ));
+        // 2) filtrare după nume (nou)
+        if (nameQ) {
+            filtered = filtered.filter(r => normText(r.name).includes(nameQ));
+        }
+
+        // randare + meta corect
+        renderRecipes(filtered, []); // randăm lista deja filtrată
+        setResultsMeta(recipes.length, filtered.length, (list.length > 0 || !!nameQ));
+
+    } catch (err) {
+        alert(err.message || "Nu pot încărca rețetele. Verifică serverul.");
+        renderRecipes([], []);
+        setResultsMeta(0, 0, true);
     }
-
-    // randare + meta corect
-    renderRecipes(filtered, []); // randăm lista deja filtrată
-    setResultsMeta(recipes.length, filtered.length, (list.length > 0 || !!nameQ));
-
-  } catch (err) {
-    alert(err.message || "Nu pot încărca rețetele. Verifică serverul.");
-    renderRecipes([], []);
-    setResultsMeta(0, 0, true);
-  }
 }
 
 /* =========================
@@ -499,57 +735,61 @@ async function addRecipeFromForm(e) {
    Page init
 ========================= */
 function initIndexPage() {
-  renderUserHeader();
-  updateAddFormAccess();
-  applyFilter();
-
-  // Filtrare (buton)
-  el("applyFilterBtn")?.addEventListener("click", () => applyFilter());
-
-  // Filtrare live (tastezi și se aplică automat)
-  el("nameInput")?.addEventListener("input", () => applyFilter());
-  el("haveInput")?.addEventListener("input", () => applyFilter());
-
-  // Reset filtre (curăță și numele și ingredientele)
-  el("clearFilterBtn")?.addEventListener("click", () => {
-    const have = el("haveInput");
-    if (have) have.value = "";
-
-    const name = el("nameInput");
-    if (name) name.value = "";
-
+    renderUserHeader();
+    updateAddFormAccess();
     applyFilter();
-  });
 
-  // Adăugare / editare rețetă (submit form)
-  el("addRecipeForm")?.addEventListener("submit", addRecipeFromForm);
+    // Filtrare (buton)
+    el("applyFilterBtn")?.addEventListener("click", () => applyFilter());
 
-  // Modal close (buton X)
-  el("closeModalBtn")?.addEventListener("click", closeModal);
+    // Filtrare live (tastezi și se aplică automat)
+    el("nameInput")?.addEventListener("input", () => applyFilter());
+    el("haveInput")?.addEventListener("input", () => applyFilter());
 
-  // Modal close (click pe backdrop)
-  el("recipeModal")?.addEventListener("click", (ev) => {
-    const t = ev.target;
-    if (t && t.dataset && t.dataset.close === "true") closeModal();
-  });
+    // Reset filtre (curăță și numele și ingredientele)
+    el("clearFilterBtn")?.addEventListener("click", () => {
+        const have = el("haveInput");
+        if (have) have.value = "";
 
-  // Modal close (ESC)
-  document.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape") closeModal();
-  });
+        const name = el("nameInput");
+        if (name) name.value = "";
 
-  // Anulează editarea
-  el("cancelEditBtn")?.addEventListener("click", () => {
-    editingRecipeId = null;
+        applyFilter();
+    });
 
-    el("addRecipeForm")?.reset();
+    // Adăugare / editare rețetă (submit form)
+    el("addRecipeForm")?.addEventListener("submit", addRecipeFromForm);
 
-    const saveBtn = el("saveRecipeBtn");
-    if (saveBtn) saveBtn.textContent = "Salvează rețeta";
+    // Modal close (buton X)
+    el("closeModalBtn")?.addEventListener("click", closeModal);
 
-    const cancelBtn = el("cancelEditBtn");
-    if (cancelBtn) cancelBtn.style.display = "none";
-  });
+    // Modal close (click pe backdrop)
+    el("recipeModal")?.addEventListener("click", (ev) => {
+        const t = ev.target;
+        if (t && t.dataset && t.dataset.close === "true") closeModal();
+    });
+
+    // Modal close (ESC)
+    document.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") closeModal();
+    });
+
+    // Anulează editarea
+    el("cancelEditBtn")?.addEventListener("click", () => {
+        editingRecipeId = null;
+
+        el("addRecipeForm")?.reset();
+
+        const saveBtn = el("saveRecipeBtn");
+        if (saveBtn) saveBtn.textContent = "Salvează rețeta";
+
+        const cancelBtn = el("cancelEditBtn");
+        if (cancelBtn) cancelBtn.style.display = "none";
+    });
+
+    if (getCurrentUser()) {
+        loadFavorites();
+    }
 }
 
 function initLoginPage() {

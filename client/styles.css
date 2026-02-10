@@ -298,3 +298,35 @@ body.modal-open { overflow: hidden; }
 .modal-body{
   overflow-y: auto;
 }
+
+/* Favorite (heart icon) */
+.fav-btn{
+  width:44px;height:44px;
+  border-radius:999px;
+  display:inline-grid;place-items:center;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(35,48,68,.8);
+  cursor:pointer;
+}
+
+.fav-btn:hover{ filter: brightness(1.05); }
+
+.fav-btn .heart{
+  width:20px;height:20px;
+  fill:none;
+  stroke: currentColor;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+.fav-btn.is-fav{
+  color: var(--danger); /* roșu */
+}
+.fav-btn.is-fav .heart{
+  fill: currentColor;  /* inimă plină */
+}
+
+.fav-btn:not(.is-fav){
+  color: var(--text);  /* inimă goală albă */
+}
